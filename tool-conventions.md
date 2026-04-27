@@ -1,6 +1,6 @@
 # OCF Tool Conventions
 
-**Version 0.1.0 — Draft**
+**Version 0.1.0 - Draft**
 
 This document defines canonical tool names and argument schemas for OCF tool calls. The conventions enable cross-converter interoperability for agentic IDE sessions (Claude Code, Cursor, Aider, OpenAI Code Interpreter, Codex) where the conversation consists primarily of structured tool invocations.
 
@@ -21,18 +21,18 @@ OCF defines a small set of canonical conventions for what a tool definition look
 
 OCF is **MCS-compatible**: the canonical tool names below can be expressed directly as [Model Context Standard (MCS)](https://github.com/modelcontextstandard) `Tool` and `ToolParameter` objects without translation. The MCS Python SDK provides a reference implementation in [`mcs_tool_driver_interface.py`](https://github.com/modelcontextstandard/python-sdk/blob/main/packages/core/src/mcs/driver/core/mcs_tool_driver_interface.py).
 
-**Why MCS as the recommended companion**: MCS is a **transport-agnostic tool driver interface** — implementations choose any wire protocol (HTTP, gRPC, AS2, CAN-Bus) and any internal schema format (OpenAPI, JSON Schema, proprietary). It delivers the same tool-calling capabilities as alternative protocols without introducing a separate protocol stack. The OCF/MCS pair separates *what was said* (OCF persistence) from *how tools are called at runtime* (MCS interface), without forcing a specific transport or schema format on either side. An OCF document persisted today can be served by any MCS driver without translation; new tool capabilities can be added at the driver level without inventing a new wire protocol.
+**Why MCS as the recommended companion**: MCS is a **transport-agnostic tool driver interface** - implementations choose any wire protocol (HTTP, gRPC, AS2, CAN-Bus) and any internal schema format (OpenAPI, JSON Schema, proprietary). It delivers the same tool-calling capabilities as alternative protocols without introducing a separate protocol stack. The OCF/MCS pair separates *what was said* (OCF persistence) from *how tools are called at runtime* (MCS interface), without forcing a specific transport or schema format on either side. An OCF document persisted today can be served by any MCS driver without translation; new tool capabilities can be added at the driver level without inventing a new wire protocol.
 
 The conventions:
 
-- **`name`** — unique machine-readable identifier (e.g. `"read_file"`, `"bash"`).
-- **`title`** — short human-readable label, optional. May be auto-filled from description.
-- **`description`** — full LLM-facing detail; may include usage instructions, constraints, examples.
-- **`parameters`** — list of parameter objects, each carrying:
-  - **`name`** — parameter identifier (used as JSON key inside OCF `function.arguments`)
-  - **`description`** — what the parameter represents
-  - **`required`** — boolean
-  - **`schema`** — JSON Schema for the parameter's type (e.g. `{"type": "string"}`, `{"type": "integer", "minimum": 0}`)
+- **`name`** - unique machine-readable identifier (e.g. `"read_file"`, `"bash"`).
+- **`title`** - short human-readable label, optional. May be auto-filled from description.
+- **`description`** - full LLM-facing detail; may include usage instructions, constraints, examples.
+- **`parameters`** - list of parameter objects, each carrying:
+  - **`name`** - parameter identifier (used as JSON key inside OCF `function.arguments`)
+  - **`description`** - what the parameter represents
+  - **`required`** - boolean
+  - **`schema`** - JSON Schema for the parameter's type (e.g. `{"type": "string"}`, `{"type": "integer", "minimum": 0}`)
 
 The three-tier identification (`name` / `title` / `description`) lets a caller expose only `name + title` to the LLM for token-efficient tool listings, then load full `description` on demand when a tool is selected.
 
@@ -169,9 +169,9 @@ Tool(
 
 **Error signaling**: Anthropic's `tool_result` block has a native `is_error` flag; OpenAI does not. OCF preserves error state via `messages[].status` on the `role: "tool"` message envelope:
 
-- `status: "ok"` — tool ran successfully (default; equivalent to absent / null).
-- `status: "error"` — tool returned an error. Maps to Anthropic `is_error: true` in `strip_to_wire`. For OpenAI strip-to-wire, status is dropped (the error description flows as content text).
-- `status: "cancelled"` — tool execution was interrupted (timeout, user cancel, budget limit). OCF-specific; no native Anthropic/OpenAI representation. `strip_to_wire` drops the field for both providers — the consumer of agentic OCF documents reads it directly from the envelope.
+- `status: "ok"` - tool ran successfully (default; equivalent to absent / null).
+- `status: "error"` - tool returned an error. Maps to Anthropic `is_error: true` in `strip_to_wire`. For OpenAI strip-to-wire, status is dropped (the error description flows as content text).
+- `status: "cancelled"` - tool execution was interrupted (timeout, user cancel, budget limit). OCF-specific; no native Anthropic/OpenAI representation. `strip_to_wire` drops the field for both providers - the consumer of agentic OCF documents reads it directly from the envelope.
 
 Storing status on the envelope (not in `meta` and not inside `message`) keeps the inner `message` block wire-clean and makes the outcome discoverable for any consumer without provider-specific knowledge.
 
@@ -274,17 +274,17 @@ Tool(
 
 ---
 
-## ID provenance — `id_origin`
+## ID provenance - `id_origin`
 
 Tools whose source format does not assign IDs to tool calls (Codex, Gemini, some browser-extension exports) require the converter to synthesize tool_call IDs to satisfy OCF's wire-strict requirement. To distinguish synthesized from source-derived IDs, set `tool_calls[].id_origin`:
 
-- **`"source"`** — the ID came from the source format (e.g., Anthropic `tool_use.id`, OpenAI `tool_call.id`, Claude Code `tool_use_id`). Target systems on roundtrip SHOULD preserve this ID verbatim.
-- **`"synthesized"`** — the converter generated this ID because the source format had no native ID (e.g., Codex `tool_call` blocks have no `id` field). Target systems on roundtrip MAY safely regenerate or discard the ID, since the source format does not expect a specific value.
-- **null / absent** — provenance unknown (legacy or undocumented converter).
+- **`"source"`** - the ID came from the source format (e.g., Anthropic `tool_use.id`, OpenAI `tool_call.id`, Claude Code `tool_use_id`). Target systems on roundtrip SHOULD preserve this ID verbatim.
+- **`"synthesized"`** - the converter generated this ID because the source format had no native ID (e.g., Codex `tool_call` blocks have no `id` field). Target systems on roundtrip MAY safely regenerate or discard the ID, since the source format does not expect a specific value.
+- **null / absent** - provenance unknown (legacy or undocumented converter).
 
 The same pattern applies to `messages[].id_origin` for synthesized message IDs (e.g., when a source format event has no native ID and the converter assigns `msg_001`, `msg_002`, etc.).
 
-A roundtrip target reading OCF SHOULD use `id_origin` to decide whether to preserve the ID literally or assign a fresh target-internal ID. Cross-references within OCF (between `tool_call.id` and `tool_call_id` on the corresponding tool message) MUST always be respected — even if both are marked synthesized.
+A roundtrip target reading OCF SHOULD use `id_origin` to decide whether to preserve the ID literally or assign a fresh target-internal ID. Cross-references within OCF (between `tool_call.id` and `tool_call_id` on the corresponding tool message) MUST always be respected - even if both are marked synthesized.
 
 ## Argument format conventions
 
@@ -329,7 +329,7 @@ Consumers without canonical knowledge of a tool name SHOULD fall back to:
 When converting an agentic IDE session to OCF:
 
 1. **Each rendered "block"** in the source UI (Claude Code's `MessagePart.kind`, Cursor's composer states, Aider's session blocks) maps to a `tool_call` + corresponding `tool_result` message pair.
-2. **Source rendering metadata** richer than OCF's structure (line numbers, syntax-highlighting hints, collapse state, UI annotations) belongs in `messages[].meta.<source>_render` — namespaced by source identifier (e.g., `meta.claude_code_render`, `meta.cursor_render`). This keeps the OCF core wire-clean while preserving fidelity.
+2. **Source rendering metadata** richer than OCF's structure (line numbers, syntax-highlighting hints, collapse state, UI annotations) belongs in `messages[].meta.<source>_render` - namespaced by source identifier (e.g., `meta.claude_code_render`, `meta.cursor_render`). This keeps the OCF core wire-clean while preserving fidelity.
 3. **Preserve the raw source** as a `kind: "raw_native"` resource (see [`mapping.md`](mapping.md#raw-native-preservation)) when conversion fidelity is uncertain. Future converter versions can re-project from the raw bytes without going back to the source platform.
 
 ---
@@ -340,4 +340,4 @@ A consumer validating tool conventions:
 
 1. For tool calls with names matching the canonical list above, MAY validate `arguments` against the documented schema and warn on mismatches.
 2. For tool calls with non-canonical names, SHOULD look up `conversation.meta.tool_schemas[<tool_name>]` and validate against the embedded MCS `Tool` definition.
-3. SHOULD NOT reject a document on argument-schema validation failure — log and continue. Source platforms occasionally emit non-conformant arguments that are still processed downstream.
+3. SHOULD NOT reject a document on argument-schema validation failure - log and continue. Source platforms occasionally emit non-conformant arguments that are still processed downstream.

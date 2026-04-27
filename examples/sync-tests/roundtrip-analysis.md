@@ -1,15 +1,15 @@
-# OCF Roundtrip Analysis — ChatSyncer Sources
+# OCF Roundtrip Analysis - ChatSyncer Sources
 
 **Source project**: `C:\Development\Projekte\Python\ChatSyncer`
 **Tested adapters**: `claude_code`, `cursor`, `codex`
 **OCF version**: 0.1.0-draft
-**Test method**: Static analysis. No code executed. Each ChatSyncer fixture (from `tests/conftest.py`) was projected by hand into OCF following the adapters' normalization rules in `src/chatsyncer/adapters/sources/{claude_code,cursor,codex}.py`. Then each OCF document was checked for round-trip completeness — i.e., can the original source format be reconstructed from the OCF alone without consulting the source again?
+**Test method**: Static analysis. No code executed. Each ChatSyncer fixture (from `tests/conftest.py`) was projected by hand into OCF following the adapters' normalization rules in `src/chatsyncer/adapters/sources/{claude_code,cursor,codex}.py`. Then each OCF document was checked for round-trip completeness - i.e., can the original source format be reconstructed from the OCF alone without consulting the source again?
 
 **Assumption**: Internal IDs in the target system differ from those in the source system. The OCF document is the only carrier of identity-and-content; the consumer creates new internal IDs as needed. Cross-reference is only via OCF-internal IDs (`messages[].id`, `tool_calls[].id`, `resources[].id`).
 
 ---
 
-## Source 1 — Claude Code
+## Source 1 - Claude Code
 
 ### Source format (per `_claude_lines()` in `tests/conftest.py`)
 
@@ -27,7 +27,7 @@ JSONL with five line types: `system`, `user`, `assistant`, `tool_result`, `resul
 
 5 → 4 messages: `system`, `user`, `assistant`, `tool`. The Claude `result` event is dropped from `messages[]` (per the adapter), but its data is preserved on the assistant envelope (`duration_ms`, `usage`) AND in `conversation.meta.claude_code.result_event_data` for full round-trip.
 
-### Forward projection — losses?
+### Forward projection - losses?
 
 | Source field                                        | OCF location                                        | Lossless? |
 | --------------------------------------------------- | --------------------------------------------------- | --------- |
@@ -62,15 +62,15 @@ A consumer reconstructs the JSONL line-by-line:
    - For each entry, picking from OCF content (text/thinking) OR from tool_calls (the tool_use entry) in order;
    - For tool_use: emit `{"type":"tool_use","id":<tool_calls[0].id>,"name":<function.name>,"input":<JSON.parse(function.arguments)>}`.
 4. **tool_result event**: from `messages[3]`. `tool_use_id` = `tool_call_id`; `content` = content; `timestamp` = `created_at`.
-5. **result event**: from `conversation.meta.claude_code.result_event_data` — synthesized as a final line right after the assistant message it telemeters.
+5. **result event**: from `conversation.meta.claude_code.result_event_data` - synthesized as a final line right after the assistant message it telemeters.
 
-**Verdict**: ✅ **Round-trip lossless** with respect to the data preserved by the ChatSyncer adapter. The `_strip_keys(ev, {"type"})` call in the adapter means *additional* unrecognized fields on the source events would be lost — but those are in the `raw_native` resource (sha256), recoverable via re-projection.
+**Verdict**: ✅ **Round-trip lossless** with respect to the data preserved by the ChatSyncer adapter. The `_strip_keys(ev, {"type"})` call in the adapter means *additional* unrecognized fields on the source events would be lost - but those are in the `raw_native` resource (sha256), recoverable via re-projection.
 
 **Internal ID divergence handling**: All cross-references inside OCF use OCF-internal IDs. `tool_call.id = "t1"` is the OCF ID; the corresponding `tool_call_id = "t1"` on the tool message matches. A target Claude Code instance can either preserve `t1` literally (the format permits arbitrary tool-use IDs) or rewrite it to `<new_id>` consistently in both places.
 
 ---
 
-## Source 2 — Cursor
+## Source 2 - Cursor
 
 ### Source format (per `cursor_state_db` in `tests/conftest.py`)
 
@@ -101,7 +101,7 @@ SQLite KV store with `composerData:<cid>` and `bubbleId:<cid>:<bid>` rows.
 
 2 messages: `user` (b-1), `assistant` (b-2). The `_v=3`, workspace folder, headers order, and codeBlocks are preserved in `conversation.meta.cursor` and `messages[1].meta.cursor_render`.
 
-### Forward projection — losses?
+### Forward projection - losses?
 
 | Source field                                        | OCF location                                        | Lossless? |
 | --------------------------------------------------- | --------------------------------------------------- | --------- |
@@ -119,7 +119,7 @@ SQLite KV store with `composerData:<cid>` and `bubbleId:<cid>:<bid>` rows.
 | `bubble.id`                                         | `messages[].id`                                     | ✅ |
 | `composer_id` (`c-1`)                               | `meta.cursor.composer_id` + `source.original_id` (`state.vscdb::c-1`) | ✅ |
 
-**`agentKv:*` and `checkpointId:*`** keys are deliberately ignored by the adapter (M1 out-of-scope). They do NOT appear in OCF — but they are present in the `raw_native` resource (the sha256-addressed copy of the full extracted payload), so a future converter could pick them up.
+**`agentKv:*` and `checkpointId:*`** keys are deliberately ignored by the adapter (M1 out-of-scope). They do NOT appear in OCF - but they are present in the `raw_native` resource (the sha256-addressed copy of the full extracted payload), so a future converter could pick them up.
 
 ### Reverse projection (OCF → Cursor)
 
@@ -151,7 +151,7 @@ A consumer reconstructs the KV store rows:
 
 ---
 
-## Source 3 — Codex
+## Source 3 - Codex
 
 ### Source format (per `_codex_lines()` in `tests/conftest.py`)
 
@@ -167,7 +167,7 @@ JSONL with `system`, `user`, `assistant` events, Unix-second timestamps, content
 
 3 messages: `system`, `user`, `assistant`. Message IDs synthesized (the Codex fixture provides no `message.id` fields). Timestamps converted from Unix seconds to ISO 8601 UTC.
 
-### Forward projection — losses?
+### Forward projection - losses?
 
 | Source field                                        | OCF location                                        | Lossless? |
 | --------------------------------------------------- | --------------------------------------------------- | --------- |
@@ -182,7 +182,7 @@ JSONL with `system`, `user`, `assistant` events, Unix-second timestamps, content
 | `assistant.content[].tool_call{name, arguments}`    | `messages[2].message.tool_calls[]{function.name, function.arguments}` | ⚠ Format-shift: arguments (object) → arguments (JSON-string), tool_call moved from in-content to sibling. Both reversible via meta hints + JSON.parse. |
 | `assistant` block order (text+tool_call)            | `messages[2].meta.codex_render.original_block_order` | ✅ |
 
-**Codex tool_call has no native `id`** — synthesized as `synth_t_001`. The synthesized IDs are explicitly listed in `meta.codex_render.synthesized_tool_call_ids` so a roundtrip can drop them (Codex doesn't expect them).
+**Codex tool_call has no native `id`** - synthesized as `synth_t_001`. The synthesized IDs are explicitly listed in `meta.codex_render.synthesized_tool_call_ids` so a roundtrip can drop them (Codex doesn't expect them).
 
 ### Reverse projection (OCF → Codex)
 
@@ -191,7 +191,7 @@ JSONL with `system`, `user`, `assistant` events, Unix-second timestamps, content
 3. **assistant event**: `message.role` ← `role`; `message.model` ← `model`; reconstruct `message.content[]` by walking `original_block_order`:
    - For each entry: pick text blocks from OCF content, or pick a tool_call from `tool_calls[]`;
    - For tool_call entries: emit `{"type":"tool_call","name":<function.name>,"arguments":<JSON.parse(function.arguments)>}`;
-   - **Discard synthesized tool_call IDs** (Codex doesn't expect them) — `synthesized_tool_call_ids` lists exactly which to drop.
+   - **Discard synthesized tool_call IDs** (Codex doesn't expect them) - `synthesized_tool_call_ids` lists exactly which to drop.
 
 **Verdict**: ✅ **Round-trip lossless** for the data the adapter normalizes. The synthesized IDs case is correctly handled via the `synthesized_tool_call_ids` hint.
 
@@ -203,21 +203,21 @@ JSONL with `system`, `user`, `assistant` events, Unix-second timestamps, content
 
 ### What works well in OCF v0.1.0
 
-1. **Wire-strict `messages[].message`** — projects cleanly from all three platforms. Tool-related restructuring (Anthropic in-content → sibling, Codex in-content → sibling) is mechanical and reversible via `meta.<source>_render.original_block_order`.
-2. **`raw_native` resource** — provides the safety net. If a converter mapping has bugs, the original bytes are preserved and re-projection is possible.
-3. **`meta.<source>_render`** namespacing — the right pattern for source-specific structural hints (block order, synthesized fields, schema versions). Doesn't pollute the OCF core.
-4. **`conversation.project`** — adequately captures the workspace-folder concept across all three platforms. The `description` field doubles as "absolute path at capture" for non-Git workspaces.
-5. **`produced_by` + `mapping_id`** — lets future tooling identify which converter version produced this OCF and target re-projection accordingly.
+1. **Wire-strict `messages[].message`** - projects cleanly from all three platforms. Tool-related restructuring (Anthropic in-content → sibling, Codex in-content → sibling) is mechanical and reversible via `meta.<source>_render.original_block_order`.
+2. **`raw_native` resource** - provides the safety net. If a converter mapping has bugs, the original bytes are preserved and re-projection is possible.
+3. **`meta.<source>_render`** namespacing - the right pattern for source-specific structural hints (block order, synthesized fields, schema versions). Doesn't pollute the OCF core.
+4. **`conversation.project`** - adequately captures the workspace-folder concept across all three platforms. The `description` field doubles as "absolute path at capture" for non-Git workspaces.
+5. **`produced_by` + `mapping_id`** - lets future tooling identify which converter version produced this OCF and target re-projection accordingly.
 
 ### Gaps closed in v0.1.0 (after first review pass)
 
-1. **`code` content block** — OCF v0.1.0 now includes a structured `code` block (`{type: "code", code, language?, filename?}`) alongside `image_url`/`input_audio`/`file`. Cursor's codeBlocks project directly without the markdown-fence redundancy. The `language` is preserved as a first-class field, not buried in meta. `strip_to_wire` translates code blocks to Markdown fenced text for OpenAI/Anthropic/Gemini, with `language` becoming the fence info-string.
-2. **`id_origin` field** — `messages[].id_origin` and `tool_calls[].id_origin` (`"source"` / `"synthesized"` / null) replace the ad-hoc `meta.<source>_render.id_synthesized: true` and `synthesized_tool_call_ids: [...]` patterns. Roundtrip targets read this directly.
-3. **Tool-call argument format shift** — documented in `mapping.md § Tool-call argument format conventions` and `tool-conventions.md § Argument format conventions`. The canonical rule: OCF stores `function.arguments` as JSON-string (OpenAI wire convention); reverse projection to Anthropic/Codex/Gemini uses `JSON.parse`.
+1. **`code` content block** - OCF v0.1.0 now includes a structured `code` block (`{type: "code", code, language?, filename?}`) alongside `image_url`/`input_audio`/`file`. Cursor's codeBlocks project directly without the markdown-fence redundancy. The `language` is preserved as a first-class field, not buried in meta. `strip_to_wire` translates code blocks to Markdown fenced text for OpenAI/Anthropic/Gemini, with `language` becoming the fence info-string.
+2. **`id_origin` field** - `messages[].id_origin` and `tool_calls[].id_origin` (`"source"` / `"synthesized"` / null) replace the ad-hoc `meta.<source>_render.id_synthesized: true` and `synthesized_tool_call_ids: [...]` patterns. Roundtrip targets read this directly.
+3. **Tool-call argument format shift** - documented in `mapping.md § Tool-call argument format conventions` and `tool-conventions.md § Argument format conventions`. The canonical rule: OCF stores `function.arguments` as JSON-string (OpenAI wire convention); reverse projection to Anthropic/Codex/Gemini uses `JSON.parse`.
 
 ### Remaining minor items (v0.2+ candidates, non-blocking)
 
-1. **Unix-second timestamps in source need explicit preservation** if the source uses them, otherwise re-conversion to ISO 8601 loses the original integer precision. Currently using `meta.<source>_render.raw_timestamp` — works fine, just per-converter convention.
+1. **Unix-second timestamps in source need explicit preservation** if the source uses them, otherwise re-conversion to ISO 8601 loses the original integer precision. Currently using `meta.<source>_render.raw_timestamp` - works fine, just per-converter convention.
 
 ### What's potentially lost without `raw_native`
 
@@ -239,6 +239,6 @@ If a converter chooses NOT to emit a `raw_native` resource:
 - ✅ Internal-ID divergence is handled via OCF-internal IDs that are stable within OCF but can be regenerated on import.
 - ✅ Source-specific structural hints (block order, synthesized fields, schema versions) live in `meta.<source>_render` namespaces.
 - ✅ The `raw_native` safety net catches anything the current adapter mapping doesn't normalize.
-- ⚠ Two minor v0.2 cleanup items identified (id-origin marking, tool-call-argument-format documentation) — neither blocks v0.1.0.
+- ⚠ Two minor v0.2 cleanup items identified (id-origin marking, tool-call-argument-format documentation) - neither blocks v0.1.0.
 
 The format is **production-ready for use as ChatSyncer's interchange layer**, including for roundtrip back to other Claude Code / Cursor / Codex installations.

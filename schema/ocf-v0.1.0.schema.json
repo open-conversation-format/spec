@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/open-conversation-format/spec/blob/main/schema/ocf-v0.1.0.schema.json",
   "title": "Open Conversation Format",
-  "description": "Version 0.1.0 — Portable interchange format for AI conversations. Wraps the OpenAI Messages schema with a session envelope and a resource layer.",
+  "description": "Version 0.1.0 - Portable interchange format for AI conversations. Wraps the OpenAI Messages schema with a session envelope and a resource layer.",
   "type": "object",
   "required": ["ocf_version", "conversation", "messages"],
   "properties": {
@@ -78,7 +78,7 @@
         "project": {
           "type": "object",
           "required": ["id"],
-          "description": "Project/workspace this conversation belongs to. Maps to ChatGPT Projects, Claude Projects, or similar organizational units. Optional — omit when the source platform has no project concept or the conversation is unfiled. When present, 'id' is required (the canonical project assignment). Importers reconstructing project structure MUST use this block, not directory layout.",
+          "description": "Project/workspace this conversation belongs to. Maps to ChatGPT Projects, Claude Projects, or similar organizational units. Optional - omit when the source platform has no project concept or the conversation is unfiled. When present, 'id' is required (the canonical project assignment). Importers reconstructing project structure MUST use this block, not directory layout.",
           "properties": {
             "id": {
               "type": "string",
@@ -125,7 +125,7 @@
         "toolsets": {
           "type": "array",
           "default": [],
-          "description": "Optional. Named groups of tools available during the conversation. Use when tool availability changes mid-conversation (e.g., MCP server connects/disconnects, agent loads a new tool set). For static tool sets across the whole conversation, use conversation.meta.tool_schemas instead — toolsets[] is overhead unless tools actually vary.",
+          "description": "Optional. Named groups of tools available during the conversation. Use when tool availability changes mid-conversation (e.g., MCP server connects/disconnects, agent loads a new tool set). For static tool sets across the whole conversation, use conversation.meta.tool_schemas instead - toolsets[] is overhead unless tools actually vary.",
           "items": { "$ref": "#/definitions/toolset" }
         }
       }
@@ -174,7 +174,7 @@
         "revises": {
           "type": ["string", "null"],
           "default": null,
-          "description": "ID of an earlier resource that this one supersedes. Forms an implicit revision chain — useful for assistant_artifact resources updated multiple times in the same conversation (Claude Artifacts, GPT Canvas iterations). The latest revision is the resource without any successor pointing at it via 'revises'."
+          "description": "ID of an earlier resource that this one supersedes. Forms an implicit revision chain - useful for assistant_artifact resources updated multiple times in the same conversation (Claude Artifacts, GPT Canvas iterations). The latest revision is the resource without any successor pointing at it via 'revises'."
         },
         "source": { "$ref": "#/definitions/resource_source" },
         "sensitive": {
@@ -314,7 +314,7 @@
       "type": "object",
       "required": ["role"],
       "additionalProperties": false,
-      "description": "OpenAI Chat Completions message. Strict wire format, tracking the message-object shape defined in OpenAI's OpenAPI spec (https://github.com/openai/openai-openapi — informative reference, not a build dependency). An OCF conversation is, at its core, a history of these objects wrapped in the message_envelope. Extension content block types (resource_ref, thinking) are OCF-specific and must be translated by strip_to_wire(). Per-role content-part type restrictions are enforced via the allOf conditionals below (see system_or_developer_content / user_content / assistant_content / tool_content definitions).",
+      "description": "OpenAI Chat Completions message. Strict wire format, tracking the message-object shape defined in OpenAI's OpenAPI spec (https://github.com/openai/openai-openapi - informative reference, not a build dependency). An OCF conversation is, at its core, a history of these objects wrapped in the message_envelope. Extension content block types (resource_ref, thinking) are OCF-specific and must be translated by strip_to_wire(). Per-role content-part type restrictions are enforced via the allOf conditionals below (see system_or_developer_content / user_content / assistant_content / tool_content definitions).",
       "properties": {
         "role": {
           "type": "string",
@@ -499,7 +499,7 @@
       "type": "object",
       "required": ["type", "file"],
       "additionalProperties": false,
-      "description": "OpenAI Chat Completions file content part. At least one of file.file_id or file.file_data MUST be set. Note: OpenAI Responses API uses 'input_file' (different shape) — Responses API mapping is OCF v0.2 roadmap.",
+      "description": "OpenAI Chat Completions file content part. At least one of file.file_id or file.file_data MUST be set. Note: OpenAI Responses API uses 'input_file' (different shape) - Responses API mapping is OCF v0.2 roadmap.",
       "properties": {
         "type": { "const": "file" },
         "file": {
@@ -641,7 +641,7 @@
 
     "produced_by": {
       "type": "object",
-      "description": "Provenance — identifies the converter and mapping that produced this data. Required for reproducibility: when a mapping is improved, tooling can locate older outputs and re-project them.",
+      "description": "Provenance - identifies the converter and mapping that produced this data. Required for reproducibility: when a mapping is improved, tooling can locate older outputs and re-project them.",
       "properties": {
         "tool": {
           "type": "string",

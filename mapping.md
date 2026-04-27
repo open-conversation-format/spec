@@ -1,6 +1,6 @@
 # OCF Platform Mapping Guide
 
-**Version 0.1.0 — Draft**
+**Version 0.1.0 - Draft**
 
 This document specifies how to convert between OCF and AI platform formats, plus the `strip_to_wire` operation that prepares OCF data for direct API submission.
 
@@ -10,8 +10,8 @@ This document specifies how to convert between OCF and AI platform formats, plus
 
 OCF separates two concerns:
 
-1. **Wire-compatible message body** — `messages[].message` is strict OpenAI Messages format. After `strip_to_wire()` (which translates extension content blocks), it can be passed directly to `chat.completions.create()`.
-2. **Operational envelope** — IDs, timestamps, model attribution, token usage, branching, resource references, annotations. These live *outside* the inner `message` block.
+1. **Wire-compatible message body** - `messages[].message` is strict OpenAI Messages format. After `strip_to_wire()` (which translates extension content blocks), it can be passed directly to `chat.completions.create()`.
+2. **Operational envelope** - IDs, timestamps, model attribution, token usage, branching, resource references, annotations. These live *outside* the inner `message` block.
 
 This separation means: extending OCF doesn't break OpenAI compat. Platform-specific data lives in `meta` fields or in clearly-marked extension content blocks (`resource_ref`, `thinking`).
 
@@ -32,25 +32,25 @@ The conversion:
 
 ### Branching: which thread does strip_to_wire emit?
 
-When a conversation contains branches (multiple messages with the same `parent_id`, or non-null `parent_id` values), `strip_to_wire` cannot blindly unwrap all messages — that would intermix branches and produce an invalid thread. The selection rule:
+When a conversation contains branches (multiple messages with the same `parent_id`, or non-null `parent_id` values), `strip_to_wire` cannot blindly unwrap all messages - that would intermix branches and produce an invalid thread. The selection rule:
 
-1. **Caller-provided** — if `strip_to_wire(ocf, leaf_id="msg_X")` is called with an explicit leaf, start from that message.
-2. **Document-declared** — else if `conversation.active_message_id` is set, start from that message.
-3. **Fallback** — else, start from the last message in `messages[]` array order.
+1. **Caller-provided** - if `strip_to_wire(ocf, leaf_id="msg_X")` is called with an explicit leaf, start from that message.
+2. **Document-declared** - else if `conversation.active_message_id` is set, start from that message.
+3. **Fallback** - else, start from the last message in `messages[]` array order.
 
 From the start message, walk back through ancestors and build the path. At each step, the next ancestor depends on the current message's `parent_id`:
 
-- **`parent_id` is non-null** — the next ancestor is **the message with that ID** (explicit branch parent).
-- **`parent_id` is null** — the next ancestor is **the previous message in `messages[]` array order**. This preserves the documented `parent_id: null` semantics ("follows previous message in array").
-- **The current message is the first in `messages[]`** — stop. No predecessor exists.
+- **`parent_id` is non-null** - the next ancestor is **the message with that ID** (explicit branch parent).
+- **`parent_id` is null** - the next ancestor is **the previous message in `messages[]` array order**. This preserves the documented `parent_id: null` semantics ("follows previous message in array").
+- **The current message is the first in `messages[]`** - stop. No predecessor exists.
 
 Reverse the collected path for root-to-leaf order. Only messages on that walk are emitted.
 
-For purely linear conversations (`parent_id` null on every message), the rule reduces to emitting `messages[]` in array order — every message's "parent" is its array predecessor, and the walk traverses the full array.
+For purely linear conversations (`parent_id` null on every message), the rule reduces to emitting `messages[]` in array order - every message's "parent" is its array predecessor, and the walk traverses the full array.
 
 For mixed branching (some messages have explicit `parent_id`, others null), the walk correctly preserves linear context **before** the branch point. Example: a system message at the start with `parent_id: null` will be picked up via array-order chaining when the branch tip's explicit `parent_id` chain eventually lands on a message whose `parent_id: null` resolves to that system message.
 
-Implementations MUST detect cycles in `parent_id` chains (a malformed document) and reject the document or abort the conversion. A cycle is any path that visits the same message ID twice. Implementations MUST also detect when an explicit `parent_id` references a message that does not exist or appears later in array order — both indicate a malformed document.
+Implementations MUST detect cycles in `parent_id` chains (a malformed document) and reject the document or abort the conversion. A cycle is any path that visits the same message ID twice. Implementations MUST also detect when an explicit `parent_id` references a message that does not exist or appears later in array order - both indicate a malformed document.
 
 ### Per-target code block translation
 
@@ -61,7 +61,7 @@ The `code` content block is an OCF extension that preserves structured code with
 | OpenAI Chat Completions      | `text` content part with content `"```<language>\n<code>\n```"` (Markdown fence) |
 | Anthropic Messages           | `text` content part with content `"```<language>\n<code>\n```"` |
 | Google Gemini                | `parts: [{text: "```<language>\n<code>\n```"}]`              |
-| Cursor / IDE destinations    | Native structured `{lang, code}` (preserved verbatim — round-trip lossless)                |
+| Cursor / IDE destinations    | Native structured `{lang, code}` (preserved verbatim - round-trip lossless)                |
 
 When `language` is null, emit fence with no info-string: `"```\n<code>\n```"`. When `filename` is set, IDE destinations MAY use it directly; markdown destinations MAY append it as a comment.
 
@@ -78,15 +78,15 @@ Conversion rules:
 | Codex `tool_call.arguments` (object)          | `JSON.stringify(arguments)`        | Codex: `JSON.parse(arguments)` back to object. OpenAI: same string. |
 | Gemini `function_call.args` (object)          | `JSON.stringify(args)`             | Gemini: `JSON.parse(arguments)` back to object. OpenAI: same string. |
 
-Implementations MUST validate that `arguments` is parseable JSON before passing to a target that expects an object. Malformed JSON in `arguments` indicates a bad converter — the target SHOULD reject the message rather than silently emit a corrupted call.
+Implementations MUST validate that `arguments` is parseable JSON before passing to a target that expects an object. Malformed JSON in `arguments` indicates a bad converter - the target SHOULD reject the message rather than silently emit a corrupted call.
 
 ### Per-target resource_ref translation
 
 | Target                       | `resource_ref` becomes                                                                      |
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
-| OpenAI Chat Completions      | Image: `{"type": "image_url", "image_url": {"url": "data:..."}}` — File: `{"type": "file", "file": {"file_id": "..."}}` (after Files API upload) or `{"type": "file", "file": {"filename": "...", "file_data": "data:..."}}` (inline). Note: `input_file` is **Responses API** terminology, not Chat Completions. |
-| Anthropic Messages           | Image: `{"type": "image", "source": {...}}` — Document: `{"type": "document", "source": {...}}` |
-| Google Gemini                | Small: `{"inline_data": {"mime_type": "...", "data": "..."}}` — Large: File API upload + `{"file_data": {"file_uri": "..."}}` |
+| OpenAI Chat Completions      | Image: `{"type": "image_url", "image_url": {"url": "data:..."}}` - File: `{"type": "file", "file": {"file_id": "..."}}` (after Files API upload) or `{"type": "file", "file": {"filename": "...", "file_data": "data:..."}}` (inline). Note: `input_file` is **Responses API** terminology, not Chat Completions. |
+| Anthropic Messages           | Image: `{"type": "image", "source": {...}}` - Document: `{"type": "document", "source": {...}}` |
+| Google Gemini                | Small: `{"inline_data": {"mime_type": "...", "data": "..."}}` - Large: File API upload + `{"file_data": {"file_uri": "..."}}` |
 
 For `external_link` resources, the URL is referenced inline if the provider accepts URL-based references; otherwise the resource is dropped or fetched and inlined.
 
@@ -112,7 +112,7 @@ created (unix seconds)           → messages[].created_at (convert to ISO 8601)
 
 **Files**: OpenAI Files API uploads → `resources[]` with `kind: "user_file"` (uploaded by user) or `kind: "tool_input"`/`tool_output"` (used by code interpreter, etc.). Original `file_id` goes in `meta.openai_file_id`.
 
-**OpenAI Responses API (v0.2 roadmap)**: OpenAI's newer Responses API uses a different content shape (`input_text`, `input_image`, `input_file` for inputs; `output_text` with annotations for outputs) and slightly different tool-call conventions. v0.1.0 does **not** specify a Responses API mapping. Converters targeting Responses API SHOULD round-trip via Chat Completions semantics for now. A formal mapping is planned for OCF v0.2; semantically the data is the same (file inputs, text/structured outputs, tool calls) and existing OCF resources/messages cover it — only the wire shapes differ.
+**OpenAI Responses API (v0.2 roadmap)**: OpenAI's newer Responses API uses a different content shape (`input_text`, `input_image`, `input_file` for inputs; `output_text` with annotations for outputs) and slightly different tool-call conventions. v0.1.0 does **not** specify a Responses API mapping. Converters targeting Responses API SHOULD round-trip via Chat Completions semantics for now. A formal mapping is planned for OCF v0.2; semantically the data is the same (file inputs, text/structured outputs, tool calls) and existing OCF resources/messages cover it - only the wire shapes differ.
 
 ---
 
@@ -261,7 +261,7 @@ Synthetic IDs are generated. `created_at` is null. `model` is null. The conversi
 
 ### Agentic coding sessions (Claude Code, Cursor, Aider, ...) → OCF
 
-Agentic IDE sessions consist primarily of structured tool invocations: file edits, shell commands, code execution. OCF represents these natively via `tool_calls[]` and `role: "tool"` messages — no custom content block types are required. The information in source-format renderings (Claude Code's `MessagePart.kind`, Cursor's composer state) lives in `tool_call.function.arguments` (JSON-encoded) and `tool_result.content`.
+Agentic IDE sessions consist primarily of structured tool invocations: file edits, shell commands, code execution. OCF represents these natively via `tool_calls[]` and `role: "tool"` messages - no custom content block types are required. The information in source-format renderings (Claude Code's `MessagePart.kind`, Cursor's composer state) lives in `tool_call.function.arguments` (JSON-encoded) and `tool_result.content`.
 
 For the canonical tool names and argument schemas this mapping uses, see [`tool-conventions.md`](tool-conventions.md). The canonical set is aligned with the [Model Context Standard (MCS)](https://github.com/modelcontextstandard).
 
@@ -286,7 +286,7 @@ non-canonical tool               → tool_call with arbitrary name
                                    + tool_schema in conversation.meta.tool_schemas
 ```
 
-**Rendering metadata** richer than OCF's structure (line numbers, syntax-highlighting hints, collapse state, UI annotations) belongs in `messages[].meta.<source>_render` — namespaced by source identifier (e.g., `meta.claude_code_render`, `meta.cursor_render`). The OCF core stays wire-clean while preserving source fidelity.
+**Rendering metadata** richer than OCF's structure (line numbers, syntax-highlighting hints, collapse state, UI annotations) belongs in `messages[].meta.<source>_render` - namespaced by source identifier (e.g., `meta.claude_code_render`, `meta.cursor_render`). The OCF core stays wire-clean while preserving source fidelity.
 
 **Raw source preservation**: Always preserve the original session as a `kind: "raw_native"` resource with `meta.raw_format` set (e.g., `"claude-code-session-jsonl"`, `"cursor-composerdata-v3"`). Future converter versions can re-project from the raw bytes when mappings improve. See [Raw native preservation](#raw-native-preservation).
 
@@ -296,7 +296,7 @@ non-canonical tool               → tool_call with arbitrary name
 
 ### Single-file snapshot (`.ocf.json`)
 
-A complete conversation as a single JSON object. Resources may use `inline` source type to embed file content as base64 — useful when the entire session needs to fit in a single file.
+A complete conversation as a single JSON object. Resources may use `inline` source type to embed file content as base64 - useful when the entire session needs to fit in a single file.
 
 ### Bundle with external resources (`.ocf.zip`)
 
@@ -312,19 +312,19 @@ Resources reference files via `source: {"type": "file", "path": "resources/inven
 
 #### Path validation (security)
 
-Implementations extracting or reading a `.ocf.zip` bundle MUST validate every `source.path` (where `source.type` is `file`) before opening the file. Path-traversal protection is **mandatory** — a malicious bundle with `../../etc/passwd` or absolute paths could overwrite arbitrary files on the receiver's system.
+Implementations extracting or reading a `.ocf.zip` bundle MUST validate every `source.path` (where `source.type` is `file`) before opening the file. Path-traversal protection is **mandatory** - a malicious bundle with `../../etc/passwd` or absolute paths could overwrite arbitrary files on the receiver's system.
 
-Validation rules — every `source.path` MUST satisfy:
+Validation rules - every `source.path` MUST satisfy:
 
-1. **POSIX separators only** — paths use `/`. Backslashes (`\`), mixed separators, or other separators MUST be rejected.
-2. **Relative only** — paths MUST NOT begin with `/` (no absolute Unix paths).
-3. **No drive letters / UNC** — paths MUST NOT contain Windows drive prefixes (`C:`, `D:`, etc.) or UNC prefixes (`\\server\share`).
-4. **No parent traversal** — paths MUST NOT contain any `..` segment. Reject literally; do not interpret-and-resolve before checking.
-5. **No null bytes / control chars** — paths MUST NOT contain ` ` or other C0 control characters.
-6. **NFC-normalized** — paths SHOULD be in Unicode NFC form (consistent with the canonical-JSON contract above).
-7. **Stays within bundle root** — after resolving `<bundle_root>/<path>`, the resolved real path MUST be a descendant of `<bundle_root>`. (Defense-in-depth check after rule 4.)
+1. **POSIX separators only** - paths use `/`. Backslashes (`\`), mixed separators, or other separators MUST be rejected.
+2. **Relative only** - paths MUST NOT begin with `/` (no absolute Unix paths).
+3. **No drive letters / UNC** - paths MUST NOT contain Windows drive prefixes (`C:`, `D:`, etc.) or UNC prefixes (`\\server\share`).
+4. **No parent traversal** - paths MUST NOT contain any `..` segment. Reject literally; do not interpret-and-resolve before checking.
+5. **No null bytes / control chars** - paths MUST NOT contain ` ` or other C0 control characters.
+6. **NFC-normalized** - paths SHOULD be in Unicode NFC form (consistent with the canonical-JSON contract above).
+7. **Stays within bundle root** - after resolving `<bundle_root>/<path>`, the resolved real path MUST be a descendant of `<bundle_root>`. (Defense-in-depth check after rule 4.)
 
-Implementations MUST reject the entire bundle if any `source.path` fails these checks. Do NOT silently skip the offending resource — partial extraction of a malicious bundle is itself a vulnerability.
+Implementations MUST reject the entire bundle if any `source.path` fails these checks. Do NOT silently skip the offending resource - partial extraction of a malicious bundle is itself a vulnerability.
 
 The recommended layout puts files under `resources/` or `resources/raw/`. Implementations MAY enforce these prefixes as a hard requirement.
 
@@ -343,17 +343,17 @@ One JSON object per line, each carrying a `type` discriminator. Every event MUST
 
 #### Event field requirements
 
-- **`seq`** — **MUST** be present. Writer-monotonic integer, starting at 1, incrementing by 1 per event. **Single-writer assumption** for v0.1.0: a given `.ocf.jsonl` file MUST be written by one logical writer at a time. Multi-writer concurrent appending is out of scope (v0.2+ may add a writer_id field for multi-writer scenarios).
-- **`event_id`** — **SHOULD** be present. Stable, globally-unique event identifier (UUID, KSUID, or similar). Enables dedup when a reader resumes from a checkpoint and may re-read recent events. Without `event_id`, dedup falls back to `(type, primary_id)` heuristics where `primary_id` is the most-specific ID in the event (`id` / `message_id` / etc.).
-- **`occurred_at`** — **MAY** be present. ISO 8601 timestamp (UTC `Z`-suffixed) of when the event happened in the source system. Distinct from write order: a converter post-processing a batch may emit events with arbitrary `occurred_at` values while `seq` follows write order. When absent, readers SHOULD fall back to per-entity timestamps (`messages[].created_at`, etc.).
-- **`type`** — **MUST** be present. Discriminator for the event kind (see below).
+- **`seq`** - **MUST** be present. Writer-monotonic integer, starting at 1, incrementing by 1 per event. **Single-writer assumption** for v0.1.0: a given `.ocf.jsonl` file MUST be written by one logical writer at a time. Multi-writer concurrent appending is out of scope (v0.2+ may add a writer_id field for multi-writer scenarios).
+- **`event_id`** - **SHOULD** be present. Stable, globally-unique event identifier (UUID, KSUID, or similar). Enables dedup when a reader resumes from a checkpoint and may re-read recent events. Without `event_id`, dedup falls back to `(type, primary_id)` heuristics where `primary_id` is the most-specific ID in the event (`id` / `message_id` / etc.).
+- **`occurred_at`** - **MAY** be present. ISO 8601 timestamp (UTC `Z`-suffixed) of when the event happened in the source system. Distinct from write order: a converter post-processing a batch may emit events with arbitrary `occurred_at` values while `seq` follows write order. When absent, readers SHOULD fall back to per-entity timestamps (`messages[].created_at`, etc.).
+- **`type`** - **MUST** be present. Discriminator for the event kind (see below).
 
 Event types:
 
-- **`session`** — emitted exactly once, must be the first event. Carries `ocf_version` and the `conversation` block.
-- **`resource`** — emitted when a resource is added. SHOULD be emitted before any message that references it, so streaming readers can resolve `resource_ref` blocks immediately.
-- **`message`** — emitted when a message is appended. Same fields as a `message_envelope` in the snapshot format.
-- **`annotation`** — optional. Updates `annotations` on a previously-emitted message identified by `message_id`.
+- **`session`** - emitted exactly once, must be the first event. Carries `ocf_version` and the `conversation` block.
+- **`resource`** - emitted when a resource is added. SHOULD be emitted before any message that references it, so streaming readers can resolve `resource_ref` blocks immediately.
+- **`message`** - emitted when a message is appended. Same fields as a `message_envelope` in the snapshot format.
+- **`annotation`** - optional. Updates `annotations` on a previously-emitted message identified by `message_id`.
 
 A reader reconstructs the snapshot by replaying events in order:
 
@@ -362,7 +362,7 @@ A reader reconstructs the snapshot by replaying events in order:
 - `message` events append to `messages[]`.
 - `annotation` events update the annotations on the referenced message.
 
-Events are append-only. Mutating prior messages or resources is not supported in v0.1.0. (Future versions may add `delete` or `update` event types — but explicit re-emission is preferred.)
+Events are append-only. Mutating prior messages or resources is not supported in v0.1.0. (Future versions may add `delete` or `update` event types - but explicit re-emission is preferred.)
 
 #### Crash safety: partial-tail-safe readers
 
@@ -446,18 +446,18 @@ OCF defines a strict canonical form. Implementations that compute or compare has
 1. **Encoding**: UTF-8, no BOM, no trailing newline.
 2. **Key order**: object keys sorted byte-wise lexicographic (codepoint order over UTF-8 bytes).
 3. **Whitespace**: no spaces between tokens. No indentation. No line breaks inside objects/arrays.
-4. **Strings**: escape only the JSON-required characters (`"`, `\`, control chars ` `–``). Non-ASCII Unicode characters MUST be emitted literally (not `\uXXXX`-escaped). Strings MUST be in **Unicode NFC** (Normalization Form C) before serialization — otherwise `"é"` (precomposed U+00E9) and `"é"` (decomposed U+0065 + U+0301) hash differently despite being the same logical string.
+4. **Strings**: escape only the JSON-required characters (`"`, `\`, control chars ` `-``). Non-ASCII Unicode characters MUST be emitted literally (not `\uXXXX`-escaped). Strings MUST be in **Unicode NFC** (Normalization Form C) before serialization - otherwise `"é"` (precomposed U+00E9) and `"é"` (decomposed U+0065 + U+0301) hash differently despite being the same logical string.
 5. **Numbers**:
    - **Integers** serialize without decimal point: `42`, not `42.0`.
    - **Floats** use the shortest round-trip-safe representation. Python: `repr()` on `float`. Other languages: equivalent shortest-form algorithms (e.g., Ryu, Grisu3).
-   - **NaN and Infinity MUST be rejected**. The serializer MUST raise an error rather than emit `null` (this is the orjson default and silently breaks hashes — explicit rejection is required).
+   - **NaN and Infinity MUST be rejected**. The serializer MUST raise an error rather than emit `null` (this is the orjson default and silently breaks hashes - explicit rejection is required).
    - Integers that overflow IEEE 754 doubles (`> 2^53`) SHOULD be rejected unless explicitly handled by both writer and reader.
-6. **Timestamps**: ISO 8601 in UTC with `Z` suffix. No offset notation (`+00:00` is forbidden — must be normalized to `Z`). Sub-second precision is preserved verbatim from the source.
+6. **Timestamps**: ISO 8601 in UTC with `Z` suffix. No offset notation (`+00:00` is forbidden - must be normalized to `Z`). Sub-second precision is preserved verbatim from the source.
 7. **Booleans and null**: `true`, `false`, `null` exactly.
 
 ### Computing a resource hash
 
-For `resources[].sha256`, hash the raw file bytes — not a JSON serialization of the resource entry. Direct file-content hashing.
+For `resources[].sha256`, hash the raw file bytes - not a JSON serialization of the resource entry. Direct file-content hashing.
 
 For inline resources (`source.type: "inline"`), hash the **decoded** bytes (after base64-decoding `source.data`), not the base64 string.
 
@@ -498,10 +498,10 @@ OCF defines a **redaction layer** that records what redaction (if any) has been 
 
 **Modes**:
 
-- **`off`** — no redaction has been applied. The document MAY contain secrets. Default for raw exports.
-- **`flag_only`** — sensitive content has been *identified* (via `sensitive: true` flags on content blocks, messages, or resources) but content is **unchanged**. Useful for review workflows.
-- **`mask`** — sensitive content has been *replaced* with masking markers (e.g. `[REDACTED]`, `AKIA****`, `<email>`). Content blocks marked `sensitive: true` indicate where masking was applied.
-- **`drop`** — sensitive content blocks, messages, or resources have been *removed entirely*. The document is shorter than the original. Removed entries leave no trace except possibly an envelope-level `meta.redacted: true`.
+- **`off`** - no redaction has been applied. The document MAY contain secrets. Default for raw exports.
+- **`flag_only`** - sensitive content has been *identified* (via `sensitive: true` flags on content blocks, messages, or resources) but content is **unchanged**. Useful for review workflows.
+- **`mask`** - sensitive content has been *replaced* with masking markers (e.g. `[REDACTED]`, `AKIA****`, `<email>`). Content blocks marked `sensitive: true` indicate where masking was applied.
+- **`drop`** - sensitive content blocks, messages, or resources have been *removed entirely*. The document is shorter than the original. Removed entries leave no trace except possibly an envelope-level `meta.redacted: true`.
 
 **`policy_hash`** lets a receiver verify the bundle was processed with a known policy. The hash is computed as:
 
@@ -518,9 +518,9 @@ A receiver with the same policy can recompute the hash and confirm match. Receiv
 
 The `sensitive: boolean` field appears at three levels:
 
-- **`content_block.sensitive`** — fine-grained: this specific block (text, image, resource_ref, thinking) contains sensitive data.
-- **`message_envelope.sensitive`** — coarse: the entire message contains sensitive data. Useful when `message.content` is a string and per-block flagging is impossible.
-- **`resource.sensitive`** — the resource (file, artifact) contains sensitive data.
+- **`content_block.sensitive`** - fine-grained: this specific block (text, image, resource_ref, thinking) contains sensitive data.
+- **`message_envelope.sensitive`** - coarse: the entire message contains sensitive data. Useful when `message.content` is a string and per-block flagging is impossible.
+- **`resource.sensitive`** - the resource (file, artifact) contains sensitive data.
 
 These flags are advisory. They mark content for redaction tooling but do not enforce it. Whether the content is actually masked or dropped depends on `conversation.redaction.mode`.
 
@@ -581,11 +581,11 @@ The schema entry:
 
 `meta.raw_format` is critical: it lets future converter tooling find all `raw_native` resources of a given format. Suggested format identifiers (informative, not exhaustive):
 
-- `chatgpt-export-conversations-v1` — ChatGPT data export `conversations.json`
-- `claude-export-v1` — Claude data export per-conversation JSON
-- `claude-code-session-jsonl` — Claude Code session log
-- `cursor-composerdata-v3` — Cursor composer state blob (subscript by major version)
-- `gemini-takeout-v1` — Google Takeout Gemini activity export
+- `chatgpt-export-conversations-v1` - ChatGPT data export `conversations.json`
+- `claude-export-v1` - Claude data export per-conversation JSON
+- `claude-code-session-jsonl` - Claude Code session log
+- `cursor-composerdata-v3` - Cursor composer state blob (subscript by major version)
+- `gemini-takeout-v1` - Google Takeout Gemini activity export
 
 ### Re-projection workflow
 
@@ -611,7 +611,7 @@ An OCF document is valid when:
 7. Every `resource_ref.resource_id` (in any content block) points to an existing `resources[].id`.
 8. Every `resources[].source` matches one of the three sub-schemas (`file` / `inline` / `url`).
 9. Every `resources[].kind` is one of the seven defined values.
-10. When `resources[].kind == "raw_native"`, `meta.raw_format` SHOULD be set. Validators MAY warn (not fail) if absent — re-projection tooling cannot locate untagged raw resources.
+10. When `resources[].kind == "raw_native"`, `meta.raw_format` SHOULD be set. Validators MAY warn (not fail) if absent - re-projection tooling cannot locate untagged raw resources.
 11. When `conversation.redaction.mode` is set to anything other than `"off"`, `policy_hash` SHOULD be set. Validators MAY warn if absent.
 12. SHA-256 digests, when computed for comparison or `policy_hash`, MUST follow the canonical JSON contract in [Hashing and canonical JSON](#hashing-and-canonical-json). Hashes computed with non-canonical serialization are not interoperable.
 13. When `conversation.active_message_id` is set, it MUST reference an existing `messages[].id`.
@@ -624,7 +624,7 @@ A bundle (`.ocf.zip`) is additionally valid when:
 
 18. `conversation.ocf.json` exists at the bundle root.
 19. Every `source.path` (where `type` is `file`) references a file inside the bundle.
-20. Every `source.path` passes the path-validation rules (POSIX separators, relative, no `..`, no drive letters, no null bytes — see [Path validation](#path-validation-security)).
+20. Every `source.path` passes the path-validation rules (POSIX separators, relative, no `..`, no drive letters, no null bytes - see [Path validation](#path-validation-security)).
 21. Where `sha256` is set on a resource, it matches the actual file's SHA-256 digest (over the file bytes, not the JSON entry).
 22. `raw_native` resources SHOULD live under `resources/raw/` (convention, not enforced).
 

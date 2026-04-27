@@ -44,7 +44,7 @@
       "created_at": "2026-04-26T16:00:00Z",
       "message": {
         "role": "user",
-        "content": "There's a bug in parser.py — it crashes on empty rows. Please fix it and run the tests."
+        "content": "There's a bug in parser.py - it crashes on empty rows. Please fix it and run the tests."
       }
     },
     {
@@ -90,11 +90,11 @@
         "content": [
           {
             "type": "thinking",
-            "thinking": "The bug is on the last line — `row[0]` raises IndexError if a row is empty. I'll add a guard."
+            "thinking": "The bug is on the last line - `row[0]` raises IndexError if a row is empty. I'll add a guard."
           },
           {
             "type": "text",
-            "text": "I see — `row[0]` raises `IndexError` on empty rows. I'll skip empty rows."
+            "text": "I see - `row[0]` raises `IndexError` on empty rows. I'll skip empty rows."
           }
         ],
         "tool_calls": [
