@@ -1,0 +1,122 @@
+{
+  "ocf_version": "0.1.0",
+  "conversation": {
+    "id": "conv_codex_unittest_001",
+    "title": null,
+    "created_at": "2024-04-24T10:20:00Z",
+    "updated_at": "2024-04-24T10:20:25Z",
+    "default_model": "gpt-5-codex",
+    "source": {
+      "platform": "codex",
+      "export_tool": "chatsyncer",
+      "original_id": "rollout-2026-04-24T10-00-00-abc.jsonl",
+      "original_url": null
+    },
+    "produced_by": {
+      "tool": "chatsyncer",
+      "version": "0.1.0",
+      "mapping_id": "codex-rollout-jsonl-v1"
+    },
+    "project": {
+      "id": "proj_codex_work",
+      "name": "codex-project",
+      "platform_id": null,
+      "description": "/srv/work/codex-project"
+    },
+    "meta": {
+      "codex": {
+        "absolute_path_at_capture": "/srv/work/codex-project",
+        "raw_timestamp_format": "unix_seconds",
+        "tool_call_in_content": true
+      }
+    }
+  },
+
+  "resources": [
+    {
+      "id": "res_raw_001",
+      "kind": "raw_native",
+      "filename": "rollout-2026-04-24T10-00-00-abc.jsonl",
+      "media_type": "application/x-ndjson",
+      "byte_size": 512,
+      "sha256": "3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d",
+      "source": { "type": "file", "path": "resources/raw/3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d" },
+      "meta": {
+        "raw_format": "codex-rollout-jsonl",
+        "raw_format_version": "1.x",
+        "captured_at": "2026-04-26T18:00:00Z"
+      }
+    }
+  ],
+
+  "messages": [
+    {
+      "id": "msg_001",
+      "id_origin": "synthesized",
+      "created_at": "2024-04-24T10:20:00Z",
+      "model": "gpt-5-codex",
+      "message": {
+        "role": "system",
+        "content": "[Codex session init]\nWorking directory: /srv/work/codex-project\nDefault model: gpt-5-codex"
+      },
+      "meta": {
+        "codex_render": {
+          "raw_event_type": "system",
+          "raw_timestamp": 1713961200,
+          "cwd": "/srv/work/codex-project"
+        }
+      }
+    },
+    {
+      "id": "msg_002",
+      "id_origin": "synthesized",
+      "created_at": "2024-04-24T10:20:10Z",
+      "message": {
+        "role": "user",
+        "content": [
+          { "type": "text", "text": "Generate a unit test." }
+        ]
+      },
+      "meta": {
+        "codex_render": {
+          "raw_event_type": "user",
+          "raw_timestamp": 1713961210,
+          "content_form": "blocks"
+        }
+      }
+    },
+    {
+      "id": "msg_003",
+      "id_origin": "synthesized",
+      "created_at": "2024-04-24T10:20:25Z",
+      "model": "gpt-5-codex",
+      "message": {
+        "role": "assistant",
+        "content": [
+          { "type": "text", "text": "Here is a unit test." }
+        ],
+        "tool_calls": [
+          {
+            "id": "synth_t_001",
+            "id_origin": "synthesized",
+            "type": "function",
+            "function": {
+              "name": "run_shell",
+              "arguments": "{\"cmd\":\"pytest -q\"}"
+            }
+          }
+        ]
+      },
+      "meta": {
+        "codex_render": {
+          "raw_event_type": "assistant",
+          "raw_timestamp": 1713961225,
+          "content_form": "blocks",
+          "original_block_order": ["text", "tool_call"],
+          "tool_call_position": "in_content",
+          "original_tool_call_arguments_form": "object"
+        }
+      }
+    }
+  ]
+}

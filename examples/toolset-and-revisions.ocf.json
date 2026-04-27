@@ -1,0 +1,223 @@
+{
+  "ocf_version": "0.1.0",
+  "conversation": {
+    "id": "conv_toolset_revisions_001",
+    "title": "Generate and revise report artifact",
+    "created_at": "2026-04-27T10:00:00Z",
+    "updated_at": "2026-04-27T10:04:00Z",
+    "default_model": "claude-sonnet-4-6",
+    "source": {
+      "platform": "claude_code",
+      "export_tool": "ocf-example"
+    },
+    "toolsets": [
+      {
+        "id": "tools_fs_v1",
+        "name": "Filesystem tools",
+        "tools": [
+          {
+            "name": "read_file",
+            "title": "Read a file",
+            "description": "Read a UTF-8 text file from the workspace.",
+            "parameters": [
+              {
+                "name": "path",
+                "description": "Workspace-relative path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          {
+            "name": "write_file",
+            "title": "Write a file",
+            "description": "Write a UTF-8 text file to the workspace.",
+            "parameters": [
+              {
+                "name": "path",
+                "description": "Workspace-relative path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              {
+                "name": "content",
+                "description": "File content",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "resources": [
+    {
+      "id": "res_report_v1",
+      "kind": "assistant_artifact",
+      "filename": "report.md",
+      "title": "Report draft",
+      "media_type": "text/markdown",
+      "byte_size": 128,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "created_by": "msg_004",
+      "source": {
+        "type": "file",
+        "path": "resources/report-v1.md"
+      }
+    },
+    {
+      "id": "res_report_v2",
+      "kind": "assistant_artifact",
+      "filename": "report.md",
+      "title": "Report final",
+      "media_type": "text/markdown",
+      "byte_size": 172,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "created_by": "msg_007",
+      "revises": "res_report_v1",
+      "source": {
+        "type": "file",
+        "path": "resources/report-v2.md"
+      }
+    },
+    {
+      "id": "res_stderr_001",
+      "kind": "tool_output",
+      "filename": "write-error.stderr.txt",
+      "media_type": "text/plain",
+      "byte_size": 37,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "created_by": "msg_006",
+      "source": {
+        "type": "file",
+        "path": "resources/write-error.stderr.txt"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg_001",
+      "created_at": "2026-04-27T10:00:00Z",
+      "message": {
+        "role": "system",
+        "content": "You are an agentic coding assistant. Keep generated artifacts as files."
+      }
+    },
+    {
+      "id": "msg_002",
+      "created_at": "2026-04-27T10:00:12Z",
+      "message": {
+        "role": "user",
+        "content": "Create a short Markdown report and save it as report.md."
+      }
+    },
+    {
+      "id": "msg_003",
+      "created_at": "2026-04-27T10:00:20Z",
+      "model": "claude-sonnet-4-6",
+      "toolset_id": "tools_fs_v1",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "I'll write the report file now."
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": "call_write_001",
+            "type": "function",
+            "function": {
+              "name": "write_file",
+              "arguments": "{\"path\":\"report.md\",\"content\":\"# Report\\n\\nInitial draft.\"}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "msg_004",
+      "created_at": "2026-04-27T10:00:22Z",
+      "status": "ok",
+      "message": {
+        "role": "tool",
+        "tool_call_id": "call_write_001",
+        "content": "Wrote 128 bytes to report.md"
+      }
+    },
+    {
+      "id": "msg_005",
+      "created_at": "2026-04-27T10:01:00Z",
+      "model": "claude-sonnet-4-6",
+      "toolset_id": "tools_fs_v1",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "I'll try to overwrite it with the final version."
+          }
+        ],
+        "tool_calls": [
+          {
+            "id": "call_write_002",
+            "type": "function",
+            "function": {
+              "name": "write_file",
+              "arguments": "{\"path\":\"report.md\",\"content\":\"# Report\\n\\nFinal version with details.\"}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "msg_006",
+      "created_at": "2026-04-27T10:01:05Z",
+      "status": "error",
+      "message": {
+        "role": "tool",
+        "tool_call_id": "call_write_002",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"exit_code\":1,\"stderr_resource\":\"res_stderr_001\"}"
+          },
+          {
+            "type": "resource_ref",
+            "resource_id": "res_stderr_001"
+          }
+        ]
+      }
+    },
+    {
+      "id": "msg_007",
+      "created_at": "2026-04-27T10:02:10Z",
+      "model": "claude-sonnet-4-6",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "The first draft exists; the final version should revise the artifact resource rather than replace conversation text."
+          },
+          {
+            "type": "text",
+            "text": "The workspace write failed, so I attached the revised report as a final artifact."
+          },
+          {
+            "type": "resource_ref",
+            "resource_id": "res_report_v2"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,682 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/open-conversation-format/spec/blob/main/schema/ocf-v0.1.0.schema.json",
+  "title": "Open Conversation Format",
+  "description": "Version 0.1.0 — Portable interchange format for AI conversations. Wraps the OpenAI Messages schema with a session envelope and a resource layer.",
+  "type": "object",
+  "required": ["ocf_version", "conversation", "messages"],
+  "properties": {
+
+    "ocf_version": {
+      "type": "string",
+      "const": "0.1.0",
+      "description": "OCF schema version. Required for forward compatibility."
+    },
+
+    "conversation": { "$ref": "#/definitions/conversation" },
+
+    "resources": {
+      "type": "array",
+      "default": [],
+      "description": "Files, artifacts, and other persistable session objects. Referenced from messages via resource_ref content blocks.",
+      "items": { "$ref": "#/definitions/resource" }
+    },
+
+    "messages": {
+      "type": "array",
+      "description": "Ordered list of message envelopes. Linear by default; parent_id enables branching.",
+      "items": { "$ref": "#/definitions/message_envelope" }
+    }
+  },
+
+  "definitions": {
+
+    "conversation": {
+      "type": "object",
+      "required": ["id", "created_at"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique conversation identifier (UUID recommended)."
+        },
+        "title": { "type": ["string", "null"] },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp."
+        },
+        "updated_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "default_model": {
+          "type": ["string", "null"],
+          "description": "Model used for the conversation (can be overridden per message)."
+        },
+        "active_message_id": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Optional pointer to the head of the active branch when the conversation contains branching (multiple messages share a parent_id). Used by strip_to_wire to determine which thread to emit. If null and branches exist, strip_to_wire defaults to walking parent_id links from the last message in messages[]. For linear conversations (parent_id null everywhere), this field has no effect."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source": {
+          "type": "object",
+          "description": "Origin platform metadata.",
+          "properties": {
+            "platform": {
+              "type": "string",
+              "description": "Source platform identifier (e.g. 'chatgpt', 'claude', 'gemini', 'grok', 'copilot', 'deepseek', 'mistral', 'perplexity', 'open_webui', 'custom')."
+            },
+            "export_tool": { "type": ["string", "null"] },
+            "original_id": { "type": ["string", "null"] },
+            "original_url": { "type": ["string", "null"] }
+          }
+        },
+        "project": {
+          "type": "object",
+          "required": ["id"],
+          "description": "Project/workspace this conversation belongs to. Maps to ChatGPT Projects, Claude Projects, or similar organizational units. Optional — omit when the source platform has no project concept or the conversation is unfiled. When present, 'id' is required (the canonical project assignment). Importers reconstructing project structure MUST use this block, not directory layout.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Stable project identifier within OCF documents."
+            },
+            "name": { "type": ["string", "null"] },
+            "platform_id": {
+              "type": ["string", "null"],
+              "description": "Platform-side project identifier, e.g. 'claude_proj_abc123', 'gpt_proj_xyz'. Allows round-trip restoration to the original platform's project."
+            },
+            "description": { "type": ["string", "null"] }
+          }
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Arbitrary key-value pairs for platform-specific data that does not map to standard fields."
+        },
+        "produced_by": {
+          "$ref": "#/definitions/produced_by",
+          "description": "Default provenance for all messages in this conversation, unless overridden per message."
+        },
+        "redaction": {
+          "type": "object",
+          "description": "Redaction status of this conversation. Set when a redaction policy has been applied to make the document safe for sharing.",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["off", "flag_only", "mask", "drop"],
+              "default": "off",
+              "description": "off = no redaction applied (may contain secrets). flag_only = sensitive content marked via sensitive:true but not modified. mask = sensitive content replaced with placeholders (e.g. '[REDACTED]' or 'AKIA****'). drop = sensitive content blocks/resources removed entirely."
+            },
+            "policy_hash": {
+              "type": ["string", "null"],
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "sha256 hex digest, lowercase 64 hex chars, computed over canonical_json({\"mode\": <mode>, \"patterns\": <sorted-patterns>}). Receivers can verify the bundle was processed with a known policy."
+            },
+            "applied_at": {
+              "type": ["string", "null"],
+              "format": "date-time"
+            }
+          }
+        },
+        "toolsets": {
+          "type": "array",
+          "default": [],
+          "description": "Optional. Named groups of tools available during the conversation. Use when tool availability changes mid-conversation (e.g., MCP server connects/disconnects, agent loads a new tool set). For static tool sets across the whole conversation, use conversation.meta.tool_schemas instead — toolsets[] is overhead unless tools actually vary.",
+          "items": { "$ref": "#/definitions/toolset" }
+        }
+      }
+    },
+
+    "resource": {
+      "type": "object",
+      "required": ["id", "kind", "source"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique resource identifier within this conversation."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "user_file",
+            "assistant_artifact",
+            "tool_input",
+            "tool_output",
+            "inline_attachment",
+            "external_link",
+            "raw_native"
+          ],
+          "description": "Resource category. user_file = uploaded by user. assistant_artifact = generated by model (Claude Artifact, GPT Canvas, code file). tool_input/tool_output = passed to/produced by tools. inline_attachment = small multimodal payload (image, audio) embedded inline. external_link = URL referenced but not stored locally (lossy). raw_native = exact bytes of the original source format (e.g. Claude export jsonl line, Cursor composerData blob), preserved so future converters can re-project with improved mappings. Recommended bundle path: resources/raw/<sha256>. Set meta.raw_format to identify the source format."
+        },
+        "filename": { "type": ["string", "null"] },
+        "title": {
+          "type": ["string", "null"],
+          "description": "Human-readable title (useful for artifacts without a meaningful filename)."
+        },
+        "media_type": {
+          "type": ["string", "null"],
+          "description": "MIME type, e.g. 'text/csv', 'image/png', 'text/x-python'."
+        },
+        "byte_size": { "type": ["integer", "null"], "minimum": 0 },
+        "sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 hex digest, lowercase, exactly 64 hex chars. SHOULD be set when source.type is 'file'. Enables integrity check and content-addressable storage."
+        },
+        "created_by": {
+          "type": ["string", "null"],
+          "description": "Message ID that produced or attached this resource (provenance)."
+        },
+        "revises": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "ID of an earlier resource that this one supersedes. Forms an implicit revision chain — useful for assistant_artifact resources updated multiple times in the same conversation (Claude Artifacts, GPT Canvas iterations). The latest revision is the resource without any successor pointing at it via 'revises'."
+        },
+        "source": { "$ref": "#/definitions/resource_source" },
+        "sensitive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this resource has been flagged as containing sensitive data (secrets, PII, credentials). Used by redaction tooling."
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Platform-specific fields. For raw_native resources, set meta.raw_format (e.g. 'claude-export-v1', 'cursor-composerdata-v3') and optionally meta.raw_format_version so future converters can locate and re-project these resources."
+        }
+      }
+    },
+
+    "resource_source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "path"],
+          "properties": {
+            "type": { "const": "file" },
+            "path": {
+              "type": "string",
+              "description": "Relative path within the OCF bundle (e.g. 'resources/inventory.csv')."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "data"],
+          "properties": {
+            "type": { "const": "inline" },
+            "encoding": { "type": "string", "const": "base64", "default": "base64" },
+            "data": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "url"],
+          "properties": {
+            "type": { "const": "url" },
+            "url": { "type": "string", "format": "uri" }
+          }
+        }
+      ]
+    },
+
+    "message_envelope": {
+      "type": "object",
+      "required": ["id", "message"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique message ID within this conversation."
+        },
+        "id_origin": {
+          "type": ["string", "null"],
+          "enum": ["source", "synthesized", null],
+          "default": null,
+          "description": "Provenance of this message ID. 'source' = the ID came from the source format and SHOULD be preserved on roundtrip. 'synthesized' = the converter generated the ID because the source format did not provide one; target systems MAY safely regenerate it. null = unspecified (legacy / unknown)."
+        },
+        "parent_id": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "ID of the parent message. null = follows the previous message in the array. Non-null = branch point."
+        },
+        "created_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "model": {
+          "type": ["string", "null"],
+          "description": "Model that generated this message. Overrides conversation.default_model."
+        },
+        "toolset_id": {
+          "type": ["string", "null"],
+          "description": "References conversation.toolsets[].id. SHOULD be set on assistant messages with tool_calls when the conversation has dynamic toolsets, identifying which tools were available at this call. Omit when the conversation uses a static tool set (use conversation.meta.tool_schemas instead)."
+        },
+        "duration_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Generation latency for assistant messages (in milliseconds)."
+        },
+        "status": {
+          "type": ["string", "null"],
+          "enum": ["ok", "error", "cancelled", null],
+          "default": null,
+          "description": "Outcome status. Primarily meaningful on role:tool messages where the tool call may have errored or been cancelled. null = not applicable / unknown. On Anthropic conversion, status:'error' maps to is_error:true on the wire-form tool_result content block. The 'cancelled' state has no native Anthropic/OpenAI representation and is OCF-specific (useful for agentic workflows where a tool was interrupted)."
+        },
+        "usage": {
+          "type": "object",
+          "description": "Token usage for this message, if known.",
+          "additionalProperties": false,
+          "properties": {
+            "input": { "type": ["integer", "null"], "minimum": 0 },
+            "output": { "type": ["integer", "null"], "minimum": 0 }
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Context management metadata. Optional; intended for context pruning, segmentation, and pinning.",
+          "properties": {
+            "relevance": {
+              "type": ["string", "null"],
+              "enum": ["high", "medium", "low", "irrelevant", null]
+            },
+            "segment": { "type": ["string", "null"] },
+            "pinned": { "type": "boolean", "default": false },
+            "tags": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "message": {
+          "$ref": "#/definitions/openai_message",
+          "description": "Strict OpenAI-compatible message body. Wire-compatible with chat.completions.create() after strip_to_wire()."
+        },
+        "produced_by": {
+          "$ref": "#/definitions/produced_by",
+          "description": "Per-message provenance override. Use when this specific message was converted by a different tool/version than conversation.produced_by (e.g. re-converted with an improved mapping)."
+        },
+        "sensitive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Coarse-grained marker that this message contains sensitive data. Useful when message.content is a string and per-block flagging is not possible."
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "openai_message": {
+      "type": "object",
+      "required": ["role"],
+      "additionalProperties": false,
+      "description": "OpenAI Chat Completions message. Strict wire format, tracking the message-object shape defined in OpenAI's OpenAPI spec (https://github.com/openai/openai-openapi — informative reference, not a build dependency). An OCF conversation is, at its core, a history of these objects wrapped in the message_envelope. Extension content block types (resource_ref, thinking) are OCF-specific and must be translated by strip_to_wire(). Per-role content-part type restrictions are enforced via the allOf conditionals below (see system_or_developer_content / user_content / assistant_content / tool_content definitions).",
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["system", "developer", "user", "assistant", "tool"],
+          "description": "Message author role. 'developer' is OpenAI-specific (used by o1/o3-style reasoning models as a higher-priority alternative to system). When converting to providers without a developer role (Anthropic, Gemini), map to 'system' and preserve via meta.original_role: 'developer'."
+        },
+        "content": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "null" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/definitions/content_block" }
+            }
+          ],
+          "description": "String shorthand or array of content blocks. null is allowed for assistant messages that contain only tool_calls."
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional message author name (OpenAI-specific)."
+        },
+        "tool_calls": {
+          "type": "array",
+          "description": "Tool calls invoked by this assistant message.",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "function"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "id_origin": {
+                "type": ["string", "null"],
+                "enum": ["source", "synthesized", null],
+                "default": null,
+                "description": "Provenance of this tool_call ID. 'source' = preserved from source format (Anthropic tool_use.id, OpenAI tool_call.id). 'synthesized' = generated by the converter because the source did not provide one (e.g., Codex tool_call has no native id). Target systems with no need for the id MAY drop synthesized ones."
+              },
+              "type": { "const": "function" },
+              "function": {
+                "type": "object",
+                "required": ["name", "arguments"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "arguments": {
+                    "type": "string",
+                    "description": "JSON-encoded arguments string (per OpenAI spec)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tool_call_id": {
+          "type": "string",
+          "description": "Required when role is 'tool'. References the assistant's tool_calls[].id."
+        }
+      },
+      "allOf": [
+        {
+          "description": "tool messages: require tool_call_id + non-null content; restrict content to text/resource_ref blocks; forbid tool_calls.",
+          "if": { "properties": { "role": { "const": "tool" } }, "required": ["role"] },
+          "then": {
+            "required": ["tool_call_id", "content"],
+            "properties": { "content": { "$ref": "#/definitions/tool_content" } },
+            "not": { "required": ["tool_calls"] }
+          }
+        },
+        {
+          "description": "user messages: require non-null content; restrict content to text/image_url/input_audio/file/resource_ref; forbid tool_calls and tool_call_id.",
+          "if": { "properties": { "role": { "const": "user" } }, "required": ["role"] },
+          "then": {
+            "required": ["content"],
+            "properties": { "content": { "$ref": "#/definitions/user_content" } },
+            "allOf": [
+              { "not": { "required": ["tool_calls"] } },
+              { "not": { "required": ["tool_call_id"] } }
+            ]
+          }
+        },
+        {
+          "description": "system/developer messages: require non-null content; restrict content to text only; forbid tool_calls and tool_call_id.",
+          "if": { "properties": { "role": { "enum": ["system", "developer"] } }, "required": ["role"] },
+          "then": {
+            "required": ["content"],
+            "properties": { "content": { "$ref": "#/definitions/system_or_developer_content" } },
+            "allOf": [
+              { "not": { "required": ["tool_calls"] } },
+              { "not": { "required": ["tool_call_id"] } }
+            ]
+          }
+        },
+        {
+          "description": "assistant messages: require non-null content OR non-empty tool_calls; restrict content to text/thinking/resource_ref; forbid tool_call_id.",
+          "if": { "properties": { "role": { "const": "assistant" } }, "required": ["role"] },
+          "then": {
+            "anyOf": [
+              {
+                "required": ["content"],
+                "properties": { "content": { "not": { "type": "null" } } }
+              },
+              {
+                "required": ["tool_calls"],
+                "properties": { "tool_calls": { "type": "array", "minItems": 1 } }
+              }
+            ],
+            "properties": { "content": { "$ref": "#/definitions/assistant_content" } },
+            "not": { "required": ["tool_call_id"] }
+          }
+        }
+      ]
+    },
+
+    "content_block": {
+      "description": "Universal content-block union (any valid block type). Per-role content-part restrictions are enforced via openai_message.allOf using system_or_developer_content / user_content / assistant_content / tool_content.",
+      "oneOf": [
+        { "$ref": "#/definitions/text_block" },
+        { "$ref": "#/definitions/image_url_block" },
+        { "$ref": "#/definitions/input_audio_block" },
+        { "$ref": "#/definitions/file_block" },
+        { "$ref": "#/definitions/code_block" },
+        { "$ref": "#/definitions/resource_ref_block" },
+        { "$ref": "#/definitions/thinking_block" }
+      ]
+    },
+
+    "text_block": {
+      "type": "object",
+      "required": ["type", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "text" },
+        "text": { "type": "string" },
+        "sensitive": { "type": "boolean", "default": false }
+      }
+    },
+
+    "image_url_block": {
+      "type": "object",
+      "required": ["type", "image_url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "image_url" },
+        "image_url": {
+          "type": "object",
+          "required": ["url"],
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "HTTP URL or data: URI."
+            },
+            "detail": {
+              "type": "string",
+              "enum": ["auto", "low", "high"]
+            }
+          }
+        },
+        "sensitive": { "type": "boolean", "default": false }
+      }
+    },
+
+    "input_audio_block": {
+      "type": "object",
+      "required": ["type", "input_audio"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "input_audio" },
+        "input_audio": {
+          "type": "object",
+          "required": ["data", "format"],
+          "additionalProperties": false,
+          "properties": {
+            "data": { "type": "string" },
+            "format": { "type": "string", "enum": ["wav", "mp3"] }
+          }
+        },
+        "sensitive": { "type": "boolean", "default": false }
+      }
+    },
+
+    "file_block": {
+      "type": "object",
+      "required": ["type", "file"],
+      "additionalProperties": false,
+      "description": "OpenAI Chat Completions file content part. At least one of file.file_id or file.file_data MUST be set. Note: OpenAI Responses API uses 'input_file' (different shape) — Responses API mapping is OCF v0.2 roadmap.",
+      "properties": {
+        "type": { "const": "file" },
+        "file": {
+          "type": "object",
+          "additionalProperties": false,
+          "anyOf": [
+            { "required": ["file_id"] },
+            { "required": ["file_data"] }
+          ],
+          "properties": {
+            "file_id": {
+              "type": "string",
+              "description": "Provider-side file ID, e.g. an OpenAI Files API file_id."
+            },
+            "filename": { "type": "string" },
+            "file_data": {
+              "type": "string",
+              "description": "Inline file content as a data URI, e.g. 'data:application/pdf;base64,...'."
+            }
+          }
+        },
+        "sensitive": { "type": "boolean", "default": false }
+      }
+    },
+
+    "resource_ref_block": {
+      "type": "object",
+      "required": ["type", "resource_id"],
+      "additionalProperties": false,
+      "description": "OCF extension: positional reference to a resource in conversation.resources[]. Translated by strip_to_wire() into the target provider's file/image representation.",
+      "properties": {
+        "type": { "const": "resource_ref" },
+        "resource_id": { "type": "string" },
+        "sensitive": { "type": "boolean", "default": false }
+      }
+    },
+
+    "thinking_block": {
+      "type": "object",
+      "required": ["type", "thinking"],
+      "additionalProperties": false,
+      "description": "OCF extension: model reasoning/thinking. Stripped or translated by strip_to_wire() (dropped for OpenAI; preserved for Anthropic).",
+      "properties": {
+        "type": { "const": "thinking" },
+        "thinking": { "type": "string" },
+        "sensitive": { "type": "boolean", "default": false }
+      }
+    },
+
+    "code_block": {
+      "type": "object",
+      "required": ["type", "code"],
+      "additionalProperties": false,
+      "description": "OCF extension: structured code block with optional language and filename. Used for sources that store code with explicit metadata distinct from prose (Cursor codeBlocks, GPT Canvas code-mode artifacts, Aider session blocks, IDE-style multi-language responses). Symmetric with image_url for non-text first-class chat content. strip_to_wire() translates code blocks to markdown-fence text blocks for OpenAI/Anthropic/Gemini (the language becomes the fence info-string); IDE-targeted destination adapters preserve the structure verbatim.",
+      "properties": {
+        "type": { "const": "code" },
+        "code": { "type": "string", "description": "Source code content (no surrounding fences)." },
+        "language": {
+          "type": ["string", "null"],
+          "description": "Programming language identifier (e.g. 'python', 'rust', 'typescript', 'sql'). Lowercase, hyphens allowed. Conventions follow GitHub Linguist / common Markdown fence info-strings. null when language is unknown."
+        },
+        "filename": {
+          "type": ["string", "null"],
+          "description": "Optional filename hint when the code corresponds to a known file (Aider edit, code-as-artifact, GPT Canvas filename)."
+        },
+        "sensitive": { "type": "boolean", "default": false }
+      }
+    },
+
+    "system_or_developer_content": {
+      "description": "Content schema for role: system / developer. Text only; no multimodal blocks, no tool-related blocks.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/text_block" }
+        }
+      ]
+    },
+
+    "user_content": {
+      "description": "Content schema for role: user. Allows text, multimodal (image_url, input_audio, file), structured code (OCF extension), and OCF resource_ref. No thinking blocks (model-only).",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/text_block" },
+              { "$ref": "#/definitions/image_url_block" },
+              { "$ref": "#/definitions/input_audio_block" },
+              { "$ref": "#/definitions/file_block" },
+              { "$ref": "#/definitions/code_block" },
+              { "$ref": "#/definitions/resource_ref_block" }
+            ]
+          }
+        }
+      ]
+    },
+
+    "assistant_content": {
+      "description": "Content schema for role: assistant. Allows text, OCF thinking (extension), structured code (OCF extension), and OCF resource_ref (for referencing assistant artifacts). null is permitted (when only tool_calls present).",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "null" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/text_block" },
+              { "$ref": "#/definitions/thinking_block" },
+              { "$ref": "#/definitions/code_block" },
+              { "$ref": "#/definitions/resource_ref_block" }
+            ]
+          }
+        }
+      ]
+    },
+
+    "tool_content": {
+      "description": "Content schema for role: tool. Typically a string with the tool result; arrays allow text + resource_ref for large outputs that externalize to resources[].",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/text_block" },
+              { "$ref": "#/definitions/resource_ref_block" }
+            ]
+          }
+        }
+      ]
+    },
+
+    "produced_by": {
+      "type": "object",
+      "description": "Provenance — identifies the converter and mapping that produced this data. Required for reproducibility: when a mapping is improved, tooling can locate older outputs and re-project them.",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "Converter identifier, e.g. 'ocf-py-converter', 'lisa_core', 'youraiscroll'."
+        },
+        "version": {
+          "type": "string",
+          "description": "Converter version, e.g. '0.3.1'. SemVer recommended."
+        },
+        "mapping_id": {
+          "type": ["string", "null"],
+          "description": "Specific mapping used by the converter, e.g. 'claude-cli-jsonl-v1', 'chatgpt-export-tree-v2'. Allows targeting re-conversion to specific source-format versions."
+        }
+      }
+    },
+
+    "toolset": {
+      "type": "object",
+      "required": ["id", "tools"],
+      "description": "A named group of tools available during a portion of the conversation. Referenced from messages[].toolset_id.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique toolset identifier within this conversation."
+        },
+        "name": { "type": ["string", "null"] },
+        "tools": {
+          "type": "array",
+          "description": "Tool definitions available in this toolset. Each item SHOULD follow the MCS Tool shape (name, title, description, parameters[]). See tool-conventions.md.",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}

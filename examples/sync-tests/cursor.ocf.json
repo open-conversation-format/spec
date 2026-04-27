@@ -1,0 +1,95 @@
+{
+  "ocf_version": "0.1.0",
+  "conversation": {
+    "id": "conv_cursor_async_001",
+    "title": "Async-Diskussion",
+    "created_at": "2026-04-24T09:00:00Z",
+    "updated_at": "2026-04-24T09:00:05Z",
+    "default_model": "cursor-large",
+    "source": {
+      "platform": "cursor",
+      "export_tool": "chatsyncer",
+      "original_id": "state.vscdb::c-1",
+      "original_url": null
+    },
+    "produced_by": {
+      "tool": "chatsyncer",
+      "version": "0.1.0",
+      "mapping_id": "cursor-disk-kv-v3"
+    },
+    "project": {
+      "id": "proj_demo",
+      "name": "demo",
+      "platform_id": null,
+      "description": "/home/user/projects/demo"
+    },
+    "meta": {
+      "cursor": {
+        "composer_id": "c-1",
+        "composer_v": 3,
+        "workspace_folder": "/home/user/projects/demo",
+        "latest_conversation_summary": {
+          "model": "cursor-large",
+          "title": "Async-Diskussion"
+        },
+        "header_order": ["b-1", "b-2"]
+      }
+    }
+  },
+
+  "resources": [
+    {
+      "id": "res_raw_001",
+      "kind": "raw_native",
+      "filename": "composerData_c-1.json",
+      "media_type": "application/json",
+      "byte_size": 768,
+      "sha256": "2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c",
+      "source": { "type": "file", "path": "resources/raw/2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c" },
+      "meta": {
+        "raw_format": "cursor-composerdata-v3",
+        "raw_format_version": "3",
+        "captured_at": "2026-04-26T18:00:00Z",
+        "extraction_note": "Concatenated composerData:c-1 + bubbleId:c-1:* values into one canonical JSON object {composer, bubbles}."
+      }
+    }
+  ],
+
+  "messages": [
+    {
+      "id": "b-1",
+      "id_origin": "source",
+      "created_at": "2026-04-24T09:00:00Z",
+      "message": {
+        "role": "user",
+        "content": "Erklär mir async/await"
+      },
+      "meta": {
+        "cursor_render": {
+          "bubble_type": 1,
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "b-2",
+      "id_origin": "source",
+      "created_at": "2026-04-24T09:00:05Z",
+      "model": "cursor-large",
+      "message": {
+        "role": "assistant",
+        "content": [
+          { "type": "thinking", "thinking": "Nutzer fragt nach async." },
+          { "type": "text", "text": "async/await sind Syntax-Zucker…" },
+          { "type": "code", "code": "async def f(): pass", "language": "python" }
+        ]
+      },
+      "meta": {
+        "cursor_render": {
+          "bubble_type": 2,
+          "header_index": 1
+        }
+      }
+    }
+  ]
+}

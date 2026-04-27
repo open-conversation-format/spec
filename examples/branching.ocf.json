@@ -1,0 +1,60 @@
+{
+  "ocf_version": "0.1.0",
+  "conversation": {
+    "id": "conv_branching_001",
+    "title": "Release note rewrite with active branch",
+    "created_at": "2026-04-27T08:00:00Z",
+    "updated_at": "2026-04-27T08:03:00Z",
+    "default_model": "gpt-5.2",
+    "active_message_id": "msg_005",
+    "source": {
+      "platform": "chatgpt",
+      "export_tool": "ocf-example"
+    }
+  },
+  "messages": [
+    {
+      "id": "msg_001",
+      "created_at": "2026-04-27T08:00:00Z",
+      "message": {
+        "role": "system",
+        "content": "You write concise release notes for technical users."
+      }
+    },
+    {
+      "id": "msg_002",
+      "created_at": "2026-04-27T08:00:10Z",
+      "message": {
+        "role": "user",
+        "content": "Write a short release note for a CSV import bugfix."
+      }
+    },
+    {
+      "id": "msg_003",
+      "created_at": "2026-04-27T08:00:18Z",
+      "model": "gpt-5.2",
+      "message": {
+        "role": "assistant",
+        "content": "Fixed a CSV import issue. Empty rows no longer crash the parser."
+      }
+    },
+    {
+      "id": "msg_004",
+      "parent_id": "msg_002",
+      "created_at": "2026-04-27T08:01:04Z",
+      "model": "gpt-5.2",
+      "message": {
+        "role": "assistant",
+        "content": "CSV imports now skip empty rows safely, preventing parser failures during inventory uploads."
+      }
+    },
+    {
+      "id": "msg_005",
+      "created_at": "2026-04-27T08:02:20Z",
+      "message": {
+        "role": "user",
+        "content": "Make it a little more formal."
+      }
+    }
+  ]
+}

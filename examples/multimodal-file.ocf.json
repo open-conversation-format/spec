@@ -1,0 +1,107 @@
+{
+  "ocf_version": "0.1.0",
+  "conversation": {
+    "id": "conv_multimodal_001",
+    "title": "Receipt extraction",
+    "created_at": "2026-04-27T09:00:00Z",
+    "default_model": "gpt-5.2",
+    "source": {
+      "platform": "openai",
+      "export_tool": "api"
+    }
+  },
+  "resources": [
+    {
+      "id": "res_receipt_csv",
+      "kind": "user_file",
+      "filename": "receipts.csv",
+      "media_type": "text/csv",
+      "byte_size": 54,
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "source": {
+        "type": "file",
+        "path": "resources/receipts.csv"
+      },
+      "created_by": "msg_003"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg_001",
+      "created_at": "2026-04-27T09:00:00Z",
+      "message": {
+        "role": "developer",
+        "content": [
+          {
+            "type": "text",
+            "text": "Extract structured receipt data. Reply with a concise JSON summary."
+          }
+        ]
+      }
+    },
+    {
+      "id": "msg_002",
+      "created_at": "2026-04-27T09:00:10Z",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Please extract the vendor, date, and total from this receipt image."
+          },
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB",
+              "detail": "low"
+            }
+          },
+          {
+            "type": "input_audio",
+            "input_audio": {
+              "data": "UklGRiQAAABXQVZFZm10IBAAAAABAAEA",
+              "format": "wav"
+            }
+          },
+          {
+            "type": "file",
+            "file": {
+              "filename": "receipt.pdf",
+              "file_data": "data:application/pdf;base64,JVBERi0xLjQK"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "msg_003",
+      "created_at": "2026-04-27T09:01:00Z",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "I also attached the exported CSV for comparison."
+          },
+          {
+            "type": "resource_ref",
+            "resource_id": "res_receipt_csv"
+          }
+        ]
+      }
+    },
+    {
+      "id": "msg_004",
+      "created_at": "2026-04-27T09:01:06Z",
+      "model": "gpt-5.2",
+      "usage": {
+        "input": 1180,
+        "output": 64
+      },
+      "message": {
+        "role": "assistant",
+        "content": "{\"vendor\":\"Cafe Central\",\"date\":\"2026-04-26\",\"total\":\"18.40 EUR\"}"
+      }
+    }
+  ]
+}

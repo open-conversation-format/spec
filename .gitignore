@@ -1,0 +1,14 @@
+# Per-developer Claude Code settings
+.claude/settings.local.json
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor scratch
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
