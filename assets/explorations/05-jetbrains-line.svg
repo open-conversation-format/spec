@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 90" role="img" aria-label="OCF">
+  <!-- Thin spec-line above wordmark -->
+  <line x1="100" y1="20" x2="180" y2="20"
+        stroke="#0E1116"
+        stroke-width="2"
+        stroke-linecap="round"/>
+
+  <text x="140" y="68"
+        font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        font-weight="800"
+        font-size="48"
+        fill="#0E1116"
+        text-anchor="middle"
+        letter-spacing="0">[ OCF ]</text>
+</svg>
