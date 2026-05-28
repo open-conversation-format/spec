@@ -267,11 +267,15 @@
         },
         "usage": {
           "type": "object",
-          "description": "Token usage for this message, if known.",
-          "additionalProperties": false,
+          "description": "Token usage for this message, if known. The six well-known fields cover the common denominator across Anthropic, OpenAI, Gemini, Bedrock, and Cursor. Provider-specific extras (audio tokens, prediction tokens, per-modality breakdowns, cost fields, etc.) go into additional properties.",
+          "additionalProperties": true,
           "properties": {
-            "input": { "type": ["integer", "null"], "minimum": 0 },
-            "output": { "type": ["integer", "null"], "minimum": 0 }
+            "input":       { "type": ["integer", "null"], "minimum": 0, "description": "Input / prompt tokens." },
+            "output":      { "type": ["integer", "null"], "minimum": 0, "description": "Output / completion tokens." },
+            "thinking":    { "type": ["integer", "null"], "minimum": 0, "description": "Reasoning / thinking tokens (Anthropic thinking_tokens, OpenAI reasoning_tokens, Gemini thoughtsTokenCount). Subset of output." },
+            "cache_read":  { "type": ["integer", "null"], "minimum": 0, "description": "Input tokens served from prompt cache (Anthropic cache_read_input_tokens, OpenAI cached_tokens, Gemini cachedContentTokenCount, Bedrock cacheReadInputTokens)." },
+            "cache_write": { "type": ["integer", "null"], "minimum": 0, "description": "Input tokens written to prompt cache (Anthropic cache_creation_input_tokens, Bedrock cacheWriteInputTokens). Not all providers expose this." },
+            "total":       { "type": ["integer", "null"], "minimum": 0, "description": "Total token count when the provider reports it explicitly (OpenAI total_tokens, Gemini totalTokenCount, Bedrock totalTokens). Omit if not natively provided - consumers can sum input + output themselves." }
           }
         },
         "annotations": {
