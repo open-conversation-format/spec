@@ -50,6 +50,7 @@ See [`examples/`](examples/) for richer cases including resources, tool calls, a
 | Snapshot  | `.ocf.json`    | Single conversation as one JSON object. Inline resources possible via base64. |
 | Event log | `.ocf.jsonl`   | Append-only event stream, one JSON object per line. Streaming/operational. |
 | Bundle    | `.ocf.zip`     | A `.ocf.json` plus a `resources/` directory with attached files.            |
+| Snapshot + change log | `.ocf.json` + `.ocf.jsonl` | A growing conversation: a rarely rewritten snapshot plus a small log of what is new. Keeps writes small and every state on disk readable. Proposal, see [mapping.md](mapping.md#snapshot-with-change-log-ocfjson--ocfjsonl). |
 
 ## Architecture
 
@@ -131,6 +132,7 @@ Brand assets in [`assets/`](assets/) are covered by the same license. The JetBra
 | `raw_native` re-projection          | Draft         |
 | Partial-tail-safe event log         | Draft         |
 | Event-log `seq` / `event_id`        | Draft         |
+| Snapshot + change log               | Proposal      |
 | Tool conventions (MCS-aligned)      | Draft         |
 | Agentic IDE session mapping         | Draft         |
 | Project organization                | Draft         |

@@ -381,6 +381,53 @@ Writers MUST follow these rules to make readers' job possible:
 - Writers MUST NOT mutate previously-written lines. Append-only.
 - Writers SHOULD `fsync()` after critical events (e.g., user message committed) if durability matters; otherwise OS-level buffering applies.
 
+### Snapshot with change log (`.ocf.json` + `.ocf.jsonl`)
+
+> **Status: Proposal.** Combines the two existing file modes for conversations that keep growing while they are archived, e.g. agent sessions synced continuously from a coding tool into a shared folder.
+
+A conversation MAY be stored as two files with the same base name:
+
+```
+<name>.ocf.json    snapshot      - optional; the conversation up to the last compaction
+<name>.ocf.jsonl   change log    - optional; a valid event log: the current envelope
+                                   plus everything since the snapshot
+```
+
+If only one of the two files exists, it is the conversation, exactly as in the single-file modes above.
+
+#### Why two files
+
+**a) Write volume and speed.** A snapshot is a single JSON object: adding one message means rewriting the whole file. In canonical JSON the `messages` array is not even the last member (`ocf_version` follows it), and `updated_at` sits in the envelope at the top, so there is no cheap "append before the closing bracket". Agent sessions reach tens of megabytes; rewriting them after every turn costs I/O, and on file-sync services that transfer whole files (most cloud drives) a full upload each time. The change log holds only what is new since the snapshot and stays small; the large snapshot is rewritten rarely, during compaction.
+
+**b) Data safety.** The snapshot is never modified in place. It is only replaced atomically (write a temporary file, then rename it over the old one), so on disk it is always either the old or the new complete version. Patching a JSON document in place risks a torn write that makes the whole conversation unparseable. The change log is line-based and partial-tail-safe: a torn last line is dropped and costs at most one event. Every intermediate state, including a crash between writing a new snapshot and removing the log, still reads as the correct conversation (see the duplicate rule below).
+
+#### Reading
+
+A reader reconstructs the conversation as follows:
+
+1. Start from the snapshot if it exists, otherwise from an empty document.
+2. Replay the change log in `seq` order, partial-tail-safe as described above.
+3. The log's `session` event **replaces** the conversation envelope (`ocf_version`, `conversation`): the log always carries the current envelope, e.g. a title set after the snapshot was written.
+4. A `message` event whose `id` already exists **replaces** that message at its existing position; otherwise the message is appended. `resource` events are matched by `id` the same way. `annotation` events apply to messages from either file.
+5. If the envelope's `conversation.updated_at` is older than the latest message `created_at`, readers MAY use the latest message timestamp instead (the envelope is written less often than messages).
+
+Rule 4 makes duplicates harmless and lets a writer re-emit a message that changed after it reached the snapshot (e.g. an assistant turn that was still streaming during compaction, or a source tool that rewrote earlier history), without mutating any line.
+
+#### Writing
+
+- The change log starts with exactly one `session` event carrying the current envelope, followed by the resources and messages added or changed since the snapshot, in order.
+- To change the envelope, the writer rewrites the change log atomically (temporary file plus rename) with the new `session` event. Writers that only ever append MUST NOT emit a second `session` event; they rewrite the log instead. Rewriting is cheap because the log stays small.
+- **Compaction:** merge snapshot and change log per the reading rules, write the result as the new snapshot atomically, then delete the change log. The order matters: if the process stops between the two steps, both files still read correctly (rule 4). When to compact is implementation-defined, e.g. when the log exceeds a size limit, after a period without changes, or when the writer shuts down.
+- A conversation that starts out as a change log only becomes a snapshot at its first compaction (the log is converted, not renamed).
+- The single-writer assumption of the event log applies to the pair: one logical writer per conversation at a time.
+
+#### Validation
+
+When both files exist, additionally:
+
+- The log's `session.conversation.id` MUST equal the snapshot's `conversation.id`.
+- The merged result MUST be a valid snapshot document.
+
 ---
 
 ## Projects and bulk export layout
